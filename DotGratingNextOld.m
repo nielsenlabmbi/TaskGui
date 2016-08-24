@@ -1,0 +1,186 @@
+function [A P] = DotGratingNext(S,P,A)
+
+% function [A P] = DotsNext(S,P,A)
+%
+% This function performs tasks required before the start of each trial 
+% such as generating stimulus related variables or setting up data 
+% acquisition schedules.
+%
+% Any sub-functions used to generate stimuli should be located within this 
+% function!
+%
+% THINKING IN TERMS OF LOOPS LOGIC, THE MAIN REASON FOR RUNNING THIS IS TO
+% CONVERT ALL PARAMETERS, AND SETTINGS THAT DEFINE THE SCOPE OF PARAMETERS,
+%
+% Created by: Kristina Nielsen       Last modified: 200815
+
+% LAST TRIAL TYPE, 0 random, 1 pseudorandom, 2 blocking
+% If new output file
+% GET STIMULUS SIDE AND BACKGROUND LINE COLOR
+
+if A.newOutput
+    A.runType = 0;
+    A.newOutput = 0;
+end
+
+% GET STIMULUS PROPERTIES
+switch P.runType
+    case 0
+        % random stimulus side
+        A.side = ceil(2*rand);
+        A.ori = 90*(A.side-1);
+        %A.dotCoherence = P.dotCoherence;
+        %A.deltaDot = P.deltaDot;
+    case 1
+        % If last trial was not pseudo random, set up a trials list
+        if ~(A.runType == 1)
+            A.listIndex = 0;
+        end
+        % If list has finished start, start a new list
+        if ~A.listIndex
+            A.listPerm = randperm(size(S.trialsList,1));
+        end
+        % Get stimulus side and line color from trials list
+        A.side = S.trialsList(A.listPerm(A.listIndex+1),1);
+        A.ori = S.trialsList(A.listPerm(A.listIndex+1),2);
+        %A.dotCoherence = S.trialsList(A.listPerm(A.listIndex+1),3);
+        %A.deltaDot = S.trialsList(A.listPerm(A.listIndex+1),4);
+        % Update index
+        A.listIndex = mod(A.listIndex+1,size(S.trialsList,1));
+    
+end
+A.runType = P.runType; % NOTE LATEST RUN TYPE
+
+% TAKE THE SPATIAL FREQUENCY (cpd) AND GENERATE A STIMULUS
+
+% GET SOME CRUCIAL CONVERSION VALUES
+DistanceCM = P.screenDistance;
+ScreenWidthCM = S.screenWidth;
+ScreenWidthDeg = 2*atan2((ScreenWidthCM/2),DistanceCM)*180/pi;
+ScreenWidthPix = A.screenRect(3);
+ScreenHeightPix = A.screenRect(4);
+DegPerPix = ScreenWidthDeg/ScreenWidthPix;
+PixPerDeg = 1/DegPerPix;
+
+%dot and stimulus size
+A.dotSize = round(P.dotSize*PixPerDeg);
+A.distRow = round(P.distRow*PixPerDeg);
+A.dotSep = round(P.dotSep*PixPerDeg);
+A.pairSep = round(P.pairSep*PixPerDeg);
+%A.stimRadius = round(P.stimRadius*PixPerDeg);
+%A.deltaDot = round(A.deltaDot*PixPerDeg);
+
+
+%get base coordinates for disk center
+if A.side==2 %horizontal grating
+    xvecT(1)=-ScreenWidthPix/2+50;
+    xvecT2(1)=xvecT(1)+A.dotSep;
+    while xvecT2(end)<=ScreenWidthPix/2-50
+        xvecT(end+1)=xvecT2(end)+A.pairSep;
+        xvecT2(end+1)=xvecT(end)+A.dotSep;
+    end
+    yvec=[-ScreenWidthPix/2:A.distRow:ScreenWidthPix/2];
+    
+    xvec=[xvecT xvecT2];
+    
+    [xlocT,ylocT]=meshgrid(xvecT,yvec);
+    [xloc,yloc]=meshgrid(xvec,yvec);
+    
+else
+    xvec=[-ScreenWidthPix/2:A.distRow:ScreenWidthPix/2];
+    
+    yvecT(1)=-ScreenWidthPix/2+50;
+    yvecT2(1)=yvecT(1)+A.dotSep;
+    while yvecT2(end)<=ScreenHeightPix/2-50
+        yvecT(end+1)=yvecT2(end)+A.pairSep;
+        yvecT2(end+1)=yvecT(end)+A.dotSep;
+    end
+    
+    yvec=[yvecT yvecT2];
+    
+    [xloc,yloc]=meshgrid(xvec,yvec);
+end
+
+% if mod(length(xvec),2)==1
+%     xvec=xvec(1:end-1);
+% end
+% if mod(length(yvec),2)==1
+%     yvec=yvec(1:end-1);
+% end
+
+%xoff=round(rand(1)*A.distRow/2);
+%yoff=round(rand(1)*A.distRow/2);
+%xvec=xvec+xoff;
+%yvec=yvec+yoff;
+
+    
+%now get entire grid
+[xloc,yloc]=meshgrid(xvec,yvec);
+
+%color
+cbase=[0 0 1 1]; %2 rows or columns have the same color
+
+ctempV=repmat(cbase,1,ceil(length(xvec)/length(cbase)));
+ctempV=ctempV(1:length(xvec));
+colorV=repmat(ctempV,length(yvec),1);
+
+ctempH=repmat(cbase',ceil(length(yvec)/length(cbase)),1);
+ctempH=ctempH(1:length(yvec));
+colorH=repmat(ctempH,1,length(xvec));
+    
+%determine which dot pairs to remove
+if A.side==2
+    xidx=[1:length(xvecT)];
+    yidx=[1:length(yvec)];
+   
+    [xidxM,yidxM]=meshgrid(xidx,yidx);
+   
+    xidxM=xidxM(:);
+    yidxM=yidxM(:);
+    
+    Ntotal=length(xidxM);
+    Npairs=round(P.dotFraction*length(xidxM));
+    
+    dotIdx=randperm(Ntotal,Npairs);
+    xidxR=[xidxM(dotIdx);xidxM(dotIdx)+1];
+    yidxR=[yidxM(dotIdx);yidxM(dotIdx)];
+    
+    midx=sub2ind(size(xloc),yidxR,xidxR);
+else
+    xidx=[1:length(xvec)];
+    yidx=[1:2:length(yvec)];
+   
+    [xidxM,yidxM]=meshgrid(xidx,yidx);
+   
+    xidxM=xidxM(:);
+    yidxM=yidxM(:);
+   
+    Ntotal=length(xidxM);
+    Npairs=round(P.dotFraction*length(xidxM));
+    
+    dotIdx=randperm(Ntotal,Npairs);
+    xidxR=[xidxM(dotIdx);xidxM(dotIdx)];
+    yidxR=[yidxM(dotIdx);yidxM(dotIdx)+1];
+    
+    midx=sub2ind(size(xloc),yidxR,xidxR);    
+end
+
+
+xl=xloc(midx);
+yl=yloc(midx);
+
+if P.dotColor == 1
+    if A.side==1
+        cl=colorV(midx);
+    else
+        cl=colorH(midx);
+    end
+else
+    cl=ones(length(xl),1)*255;
+end
+   
+A.dotpos=[];
+A.dotpos(1,:)=xl(:);
+A.dotpos(2,:)=yl(:);
+A.dotcolor=repmat(cl(:)'*255,3,1);
+

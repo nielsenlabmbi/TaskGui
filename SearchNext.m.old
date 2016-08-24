@@ -1,0 +1,231 @@
+function [A, P] = SearchNext(S,P,A)
+
+% function [A P] = MotNext(S,P,A)
+%
+% This function performs tasks required before the start of each trial 
+% such as generating stimulus related variables or setting up data 
+% acquisition schedules.
+%
+% Any sub-functions used to generate stimuli should be located within this 
+% function!
+%
+% THINKING IN TERMS OF LOOPS LOGIC, THE MAIN REASON FOR RUNNING THIS IS TO
+% CONVERT ALL PARAMETERS, AND SETTINGS THAT DEFINE THE SCOPE OF PARAMETERS,
+%
+% Created by: Sam Nummela       Last modified: 190514
+
+% LAST TRIAL TYPE, 0 random, 1 pseudorandom, 2 blocking
+% If new output file
+% GET STIMULUS SIDE AND BACKGROUND LINE COLOR
+if A.newOutput
+    A.runType = 0;
+    A.newOutput = 0;
+end
+
+% GET STIMULUS PROPERTIES
+switch P.runType
+    case 1
+        % If last trial was not pseudo random, set up a trials list
+        if ~(A.runType == 1)
+            A.listIndex = 0;
+        end
+        % If list has finished start, start a new list
+        if ~A.listIndex
+            A.listPerm = randperm(size(S.trialsList,1));
+        end
+        % Get stimulus side and movie to play from trials list
+        A.side = S.trialsList(A.listPerm(A.listIndex+1),1);
+        A.targetid = S.trialsList(A.listPerm(A.listIndex+1),2);
+        % Update index
+        A.listIndex = mod(A.listIndex+1,size(S.trialsList,1));
+    
+end
+A.runType = P.runType; % NOTE LATEST RUN TYPE
+
+% GET SOME CRUCIAL CONVERSION VALUES
+DistanceCM = S.screenDistance;
+ScreenWidthCM = S.screenWidth;
+ScreenWidthDeg = 2*atan2((ScreenWidthCM/2),DistanceCM)*180/pi;
+ScreenWidthPix = A.screenRect(3);
+ScreenHeightPix = A.screenRect(4);
+DegPerPix = ScreenWidthDeg/ScreenWidthPix;
+PixPerDeg = 1/DegPerPix;
+
+
+
+
+%Color is the color of the distractors color 2 is the target color
+A.color=(1-S.background)*P.contrast/100+S.background;
+%disable following line to sinc colors
+A.color2=[1 1 1];
+
+% Circle sizes
+% \/ makes circles have the same area as the triangle
+dotArea=PixPerDeg^2*P.area;
+A.dotsize = 2*((dotArea/pi)^.5);
+
+%Spacing between shapes
+Sx=A.dotsize*1.4;
+Sy=Sx;
+
+% Finds the A.center of the screen
+A.center=S.screenRect/2;
+A.center=[0 0 1 0; 0 0 0 1]*A.center';
+
+%Creates a matrix of X and Y values for the screen
+[X, Y] = meshgrid (0:Sx:screenWidthPix,0:Sy:(ScreenHeightPix-200));
+
+
+A.M=ones(size(A.X));
+A.N=ones(size(A.Y));
+A.M=A.M*A.center(1);
+A.N=A.N*A.center(2);
+A.X=A.X-A.M;
+A.Y=-(A.Y-A.N);
+
+A.hold =size (A.X);
+A.Six =A.hold(:,2);
+
+A.hold =size (A.Y);
+A.Siy =A.hold(:,1);
+
+
+
+
+%Creating a matrix for the circles
+A.circlematrix=zeros(2,P.nrDist);
+A.correction=[1 0;0 -1];
+for i=1:P.nrDist
+    % positions of the circles.
+    %fprintf ('\n');
+    %fprintf (' Input the position of a circle relative to the A.center \n');
+    %A.cirpos = input('[x y]  ');
+    %A.cirpos= A.correction*(A.cirpos');
+    A.Rep=2;
+    while A.Rep==2
+        A.Ycoord=round((rand*(A.Siy-4))+2);
+        A.Xcoord=round((rand*(A.Six- 4))+2);
+        A.Ycoord=A.Y(A.Ycoord,:);
+        A.Ycoord=A.Ycoord(:,1);
+        A.Xcoord=A.X(:,A.Xcoord);
+        A.Xcoord=A.Xcoord(1,:);
+        A.cirpos=[A.Xcoord A.Ycoord];
+        
+        
+        
+        %this stops dots from being placed in the same place
+        for p = 1:size(A.circlematrix',1)
+            A.testmatrix=A.circlematrix';
+            A.Atest = distance(A.testmatrix(p,:),(A.cirpos));
+            if A.Atest<(A.dotsize/8)
+                A.Rep=2;
+                break
+            else
+                A.Rep=1;
+            end
+        end
+        
+    end
+    
+    % Creating the A.circlematrix
+    A.circlematrix(:,i)= (A.cirpos);
+    
+end
+
+
+
+%This creates two matrixs that each corrospond to whether the triangle is
+%going to be on the left or the right
+
+%Left Matrix
+A.Xleft=A.X<-200;
+A.Xleft( :, ~any(A.Xleft,1) ) = [];
+A.hold=size (A.Xleft);
+A.h=A.hold(:,2);
+A.Xleft=A.X(:,1:A.h);
+
+
+%RightMatrix
+A.Xright=A.X>200;
+A.Xright( :, ~any(A.Xright,1) ) = [];
+A.hold=size (A.Xright);
+A.rtr=size (A.X);
+A.h=A.hold(:,2);
+A.v=A.rtr (:,2);
+A.h=A.v-A.h;
+A.Xright=A.X(:,A.h:A.v);
+
+
+
+
+%Some variable saving for later
+A.Xleft(:,1)=[];
+A.Xright(:,(A.v-A.h+1))=[];
+A.v=A.rtr(:,1);
+A.Y(A.v,:)=[];
+
+
+%This tests whether this is a left trial or a right trial
+if A.side==1
+    A.X=A.Xright;
+else
+    A.X=A.Xleft;
+end
+
+
+
+
+%This block of code creates the position of the triangle
+A.h=size(A.X);
+A.vars=A.h(:,2);
+A.Rep=2;
+while A.Rep==2
+    A.Ycoord=round(rand*(A.Siy-4))+2;
+    A.Xcoord=round(rand*(A.vars-1))+1;
+    A.Ycoord=A.Y(A.Ycoord,:);
+    A.Ycoord=A.Ycoord(:,1);
+    A.Xcoord=A.X(:,A.Xcoord);
+    A.Xcoord=A.Xcoord(1,:);
+    A.Pos=[A.Xcoord A.Ycoord]';
+    A.Pos=A.center+A.Pos;
+    
+    
+    
+    %This protects against the triangle ending up on a circle
+    for p = 1:size(A.circlematrix',1)
+        A.testmatrix=A.circlematrix';
+        A.Atest = distance(A.testmatrix(p,:),(A.Pos-A.center)');
+        if A.Atest<(A.dotsize/8)
+            A.Rep=2;
+            break
+        else
+            A.Rep=1;
+        end
+    end
+end
+
+
+%Calculates the size of the triangle from the
+% area given
+A.hold=A.Area*(3^.5);
+A.height=(A.hold^.5);
+A.radius=A.height*(2/3);
+
+%creates the polygon matrix
+A.r=[0;-A.radius];
+A.angle=(2*pi)/3;
+A.rotate=[cos(A.angle) -sin(A.angle);sin(A.angle) cos(A.angle)];
+A.A=(A.Pos+A.r)';
+A.b=(A.rotate*A.r);
+A.B=(A.b+A.Pos)';
+A.angle=A.angle*2;
+A.rotate=[cos(A.angle) -sin(A.angle);sin(A.angle) cos(A.angle)];
+A.c=(A.rotate*A.r);
+A.C=(A.c+A.Pos)';
+
+A.poly=[A.A;A.C;A.B];
+
+
+
+
+end

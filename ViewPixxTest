@@ -1,0 +1,65 @@
+AdcChannel = 1;
+
+Datapixx('Open');
+
+Datapixx('StopAllSchedules');
+
+Datapixx('DisableDacAdcLoopback');
+
+Datapixx('EnableAdcFreeRunning');      
+
+Datapixx('RegWrRd');   
+
+adcDataVoltages = Datapixx('GetAdcVoltages');
+
+fprintf('\nADC channel "%d" value is "%g" Volts.\n', AdcChannel, adcDataVoltages(AdcChannel+1));
+
+Datapixx('Close');
+%%
+%Datapixx('Open');
+
+Datapixx('StopAllSchedules');
+
+Datapixx('DisableDacAdcLoopback');
+
+Datapixx('RegWrRd');
+
+bufferData = [5];
+
+bufferAddress = 0;
+
+channelList = 0;
+
+Datapixx('WriteDacBuffer', bufferData, bufferAddress, channelList);
+
+scheduleOnset = 0;
+
+scheduleRate = 500;
+
+maxScheduleFrames = 0;
+
+bufferBaseAddress = 0;
+
+numBufferFrames=1;
+
+Datapixx('SetDacSchedule', scheduleOnset, scheduleRate, maxScheduleFrames, channelList, bufferBaseAddress, numBufferFrames);
+
+Datapixx('StartDacSchedule');
+
+Datapixx('RegWrRd'); 
+
+%%
+Datapixx('Open');
+
+Datapixx('StopAllSchedules');
+
+Datapixx('DisableDacAdcLoopback');
+
+Datapixx('RegWrRd');
+
+channelList=0;
+
+Datapixx('WriteDacBuffer',5,0,channelList);
+Datapixx('SetDacSchedule',0,1000,1,channelList,0,1);
+Datapixx('StartDacSchedule'); 
+Datapixx('RegWrRd');
